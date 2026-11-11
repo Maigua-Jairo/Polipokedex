@@ -1,0 +1,81 @@
+flowchart TB
+    actor["Entrenador"]
+
+    subgraph app["App móvil · Expo / React Native"]
+        router["Expo Router"]
+        tabs["Pestañas<br/>Pokédex · Capturar · Mapa"]
+        profile["Perfil del perro"]
+        authCtx["ApodoProvider<br/>estado de sesión"]
+
+        subgraph ui["UI y ViewModels"]
+            pokedex["PokédexScreen<br/>usePokedexViewModel"]
+            capture["CapturaScreen<br/>useCapturaViewModel"]
+            map["MapaScreen<br/>useMapaViewModel"]
+            dogProfile["PerfilPerroScreen<br/>usePerfilPerroViewModel"]
+        end
+
+        subgraph data["Capa de datos"]
+            trainerRepo["entrenadorRepository"]
+            dogRepo["perrosRepository"]
+            sightingRepo["avistamientosRepository"]
+            services["Servicios de plataforma<br/>ubicación · acelerómetro · nitidez"]
+            supabaseClient["supabase-service<br/>cliente y URL pública"]
+        end
+
+        camera["Expo Camera"]
+        sensors["Sensores del dispositivo<br/>acelerómetro"]
+        location["Expo Location"]
+        imageTools["Expo FileSystem<br/>ImageManipulator · jpeg-js"]
+        sessionStore["AsyncStorage<br/>sesión persistida"]
+        webview["WebView<br/>Leaflet"]
+    end
+
+    subgraph backend["Servicios externos"]
+        google["Google OAuth"]
+        supabaseAuth["Supabase Auth"]
+        postgres[("Supabase Postgres<br/>perros · avistamientos")]
+        storage[("Supabase Storage<br/>fotos")]
+        osm["OpenStreetMap<br/>mosaicos del mapa"]
+    end
+
+    actor --> router
+    router --> tabs
+    router --> profile
+    tabs --> pokedex
+    tabs --> capture
+    tabs --> map
+    profile --> dogProfile
+
+    authCtx --> trainerRepo
+    trainerRepo --> supabaseClient
+    trainerRepo <--> sessionStore
+    trainerRepo <--> supabaseAuth
+    supabaseAuth <--> google
+    pokedex --> authCtx
+    capture --> authCtx
+
+    pokedex --> dogRepo
+    pokedex --> sightingRepo
+    dogProfile --> dogRepo
+    dogProfile --> sightingRepo
+    map --> sightingRepo
+    capture --> dogRepo
+    capture --> camera
+    capture --> services
+    services --> sensors
+    services --> location
+    services --> imageTools
+    capture --> sightingRepo
+
+    dogRepo --> supabaseClient
+    sightingRepo --> supabaseClient
+    sightingRepo --> imageTools
+    supabaseClient <--> postgres
+    supabaseClient <--> storage
+    map --> webview
+    webview --> osm
+
+    classDef external fill:#eef3ff,stroke:#4566a1,color:#18253d
+    classDef platform fill:#f5f0e5,stroke:#89734d,color:#302719
+    class google,supabaseAuth,postgres,storage,osm external
+    class camera,sensors,location,imageTools,sessionStore,webview platform
