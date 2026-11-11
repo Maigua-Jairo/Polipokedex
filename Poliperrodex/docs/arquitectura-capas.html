@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Diagrama de arquitectura de capas y flujos de runtime de PoliPerrodex.">
+    <title>PoliPerrodex · Arquitectura de runtime</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f2ece0;
+        --paper-deep: #e6dcc9;
+        --ink: #2a2520;
+        --muted: #6e655a;
+        --line: #d3c7b1;
+        --terra: #a9502e;
+        --moss: #56633a;
+        --blue: #49688e;
+        --white: #fffdf8;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+
+      header, main, footer {
+        width: min(1500px, calc(100% - 40px));
+        margin-inline: auto;
+      }
+
+      header { padding: 48px 0 24px; }
+      .eyebrow {
+        margin: 0 0 8px;
+        color: var(--terra);
+        font-size: .78rem;
+        font-weight: 750;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(2rem, 5vw, 3.4rem);
+        line-height: 1.08;
+      }
+      header p:last-child {
+        max-width: 760px;
+        margin: 16px 0 0;
+        color: var(--muted);
+      }
+
+      .diagram-shell {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--white);
+        box-shadow: 0 16px 44px rgb(42 37 32 / 8%);
+      }
+
+      svg {
+        display: block;
+        width: 100%;
+        min-width: 1050px;
+        height: auto;
+      }
+
+      svg text { fill: var(--ink); font-family: system-ui, sans-serif; }
+      .layer {
+        fill: #faf7f0;
+        stroke: var(--line);
+        stroke-width: 1.5;
+      }
+      .layer-label {
+        fill: var(--muted);
+        font-size: 15px;
+        font-weight: 750;
+        letter-spacing: 1.2px;
+      }
+      .card {
+        fill: var(--white);
+        stroke: #c9bba4;
+        stroke-width: 1.5;
+      }
+      .card-accent { fill: #f7e9dc; stroke: var(--terra); }
+      .card-green { fill: #eef0e7; stroke: var(--moss); }
+      .card-blue { fill: #edf2f8; stroke: var(--blue); }
+      .card-title { font-size: 16px; font-weight: 750; }
+      .card-copy { fill: var(--muted); font-size: 12.5px; }
+      .actor { fill: var(--ink); }
+      .actor-text { fill: var(--white); font-size: 14px; font-weight: 700; }
+      .flow {
+        fill: none;
+        stroke: #887b69;
+        stroke-width: 2;
+        marker-end: url(#arrow);
+      }
+      .flow-dashed { stroke-dasharray: 6 5; }
+      .flow-label {
+        fill: var(--muted);
+        font-size: 11px;
+        paint-order: stroke;
+        stroke: var(--white);
+        stroke-width: 5px;
+        stroke-linejoin: round;
+      }
+      .boundary {
+        fill: #f5f7fb;
+        stroke: #aab9cb;
+        stroke-width: 1.5;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+        padding: 18px 22px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: .88rem;
+      }
+      .legend span { display: inline-flex; align-items: center; gap: 8px; }
+      .swatch {
+        width: 13px;
+        height: 13px;
+        border: 1px solid #9c8b73;
+        border-radius: 4px;
+        background: var(--white);
+      }
+      .swatch.mobile { border-color: var(--terra); background: #f7e9dc; }
+      .swatch.device { border-color: var(--moss); background: #eef0e7; }
+      .swatch.external { border-color: var(--blue); background: #edf2f8; }
+
+      .flows {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin: 24px 0 44px;
+      }
+      .flow-card {
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgb(255 253 248 / 72%);
+      }
+      .flow-card h2 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+      }
+      .flow-card p { margin: 0; color: var(--muted); font-size: .92rem; }
+      code {
+        color: #70412c;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: .9em;
+      }
+      footer {
+        padding: 0 0 32px;
+        color: var(--muted);
+        font-size: .82rem;
+      }
+
+      @media (max-width: 760px) {
+        header, main, footer { width: min(100% - 24px, 1500px); }
+        header { padding-top: 32px; }
+        .flows { grid-template-columns: 1fr; }
+      }
+
+      @media print {
+        body { background: white; }
+        header { padding-top: 12px; }
+        .diagram-shell { box-shadow: none; }
+        svg { min-width: 0; }
+        .flows { break-inside: avoid; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="eyebrow">PoliPerrodex · vista de runtime</p>
+      <h1>Arquitectura de capas</h1>
+      <p>
+        App móvil Expo/React Native organizada desde navegación y presentación
+        hasta repositorios, adaptadores del dispositivo y servicios externos.
+        Las flechas muestran las dependencias y los principales intercambios en ejecución.
+      </p>
+    </header>
+
+    <main>
+      <section class="diagram-shell" aria-label="Diagrama de arquitectura por capas">
+        <svg viewBox="0 0 1440 1060" role="img" aria-labelledby="diagram-title diagram-desc">
+          <title id="diagram-title">Arquitectura de runtime por capas de PoliPerrodex</title>
+          <desc id="diagram-desc">
+            Diagrama en seis capas: navegación, UI y ViewModels, dominio, acceso a datos,
+            integraciones de dispositivo y servicios externos.
+          </desc>
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="#887b69"></path>
+            </marker>
+          </defs>
+
+          <!-- Layer backgrounds -->
+          <rect class="layer" x="30" y="85" width="1380" height="112" rx="14"></rect>
+          <rect class="layer" x="30" y="215" width="1380" height="188" rx="14"></rect>
+          <rect class="layer" x="30" y="421" width="1380" height="102" rx="14"></rect>
+          <rect class="layer" x="30" y="541" width="1380" height="168" rx="14"></rect>
+          <rect class="layer" x="30" y="727" width="1380" height="132" rx="14"></rect>
+          <rect class="layer" x="30" y="877" width="1380" height="150" rx="14"></rect>
+
+          <!-- Layer headings -->
+          <text class="layer-label" x="52" y="111">01 · NAVEGACIÓN</text>
+          <text class="layer-label" x="52" y="241">02 · PRESENTACIÓN Y ESTADO</text>
+          <text class="layer-label" x="52" y="447">03 · DOMINIO</text>
+          <text class="layer-label" x="52" y="567">04 · DATOS Y CASOS DE USO</text>
+          <text class="layer-label" x="52" y="753">05 · PLATAFORMA DEL DISPOSITIVO</text>
+          <text class="layer-label" x="52" y="903">06 · SERVICIOS EXTERNOS</text>
+
+          <!-- Actor -->
+          <rect class="actor" x="647" y="18" width="146" height="46" rx="23"></rect>
+          <text class="actor-text" x="720" y="47" text-anchor="middle">Entrenador</text>
+          <path class="flow" d="M720 64 V84"></path>
+
+          <!-- Navigation -->
+          <rect class="card card-accent" x="130" y="124" width="350" height="58" rx="10"></rect>
+          <text class="card-title" x="152" y="149">RootLayout · Expo Router</text>
+          <text class="card-copy" x="152" y="168">Stack, tabs y ruta perro/[id] · src/app</text>
+
+          <rect class="card card-accent" x="545" y="124" width="350" height="58" rx="10"></rect>
+          <text class="card-title" x="567" y="149">Rutas de pestañas</text>
+          <text class="card-copy" x="567" y="168">Pokédex · Capturar · Mapa</text>
+
+          <rect class="card card-accent" x="960" y="124" width="350" height="58" rx="10"></rect>
+          <text class="card-title" x="982" y="149">Ruta de perfil</text>
+          <text class="card-copy" x="982" y="168">/perro/[id] · detalle de perro</text>
+
+          <path class="flow" d="M480 153 H544"></path>
+          <path class="flow" d="M720 183 V199 H1135 V183"></path>
+
+          <!-- Presentation / UI -->
+          <rect class="card" x="130" y="269" width="275" height="104" rx="10"></rect>
+          <text class="card-title" x="150" y="295">Pokédex</text>
+          <text class="card-copy" x="150" y="318">PokedexScreen</text>
+          <text class="card-copy" x="150" y="339">usePokedexViewModel</text>
+          <text class="card-copy" x="150" y="359">lista perros y capturas propias</text>
+
+          <rect class="card" x="430" y="269" width="275" height="104" rx="10"></rect>
+          <text class="card-title" x="450" y="295">Captura</text>
+          <text class="card-copy" x="450" y="318">CapturaScreen</text>
+          <text class="card-copy" x="450" y="339">useCapturaViewModel</text>
+          <text class="card-copy" x="450" y="359">orquesta estados y validaciones</text>
+
+          <rect class="card" x="730" y="269" width="275" height="104" rx="10"></rect>
+          <text class="card-title" x="750" y="295">Mapa</text>
+          <text class="card-copy" x="750" y="318">MapaScreen · useMapaViewModel</text>
+          <text class="card-copy" x="750" y="339">WebView + plantilla Leaflet</text>
+          <text class="card-copy" x="750" y="359">vista pública de avistamientos</text>
+
+          <rect class="card" x="1030" y="269" width="280" height="104" rx="10"></rect>
+          <text class="card-title" x="1050" y="295">Perfil del perro</text>
+          <text class="card-copy" x="1050" y="318">PerfilPerroScreen</text>
+          <text class="card-copy" x="1050" y="339">usePerfilPerroViewModel</text>
+          <text class="card-copy" x="1050" y="359">ficha y avistamientos</text>
+
+          <rect class="card card-green" x="130" y="379" width="1180" height="1" rx="1"></rect>
+          <text class="card-copy" x="150" y="396">ApodoProvider / useApodo comparte sesión y acciones de autenticación entre pantallas.</text>
+
+          <path class="flow" d="M310 182 V250 H268 V268"></path>
+          <path class="flow" d="M650 182 V250 H568 V268"></path>
+          <path class="flow" d="M795 182 V250 H868 V268"></path>
+          <path class="flow" d="M1135 182 V268"></path>
+
+          <!-- Domain -->
+          <rect class="card card-green" x="270" y="462" width="350" height="43" rx="9"></rect>
+          <text class="card-title" x="445" y="489" text-anchor="middle">Perro</text>
+          <text class="card-copy" x="445" y="502" text-anchor="middle">domain/models/perro.ts</text>
+          <rect class="card card-green" x="820" y="462" width="350" height="43" rx="9"></rect>
+          <text class="card-title" x="995" y="489" text-anchor="middle">Avistamiento</text>
+          <text class="card-copy" x="995" y="502" text-anchor="middle">domain/models/avistamiento.ts</text>
+
+          <!-- Data layer -->
+          <rect class="card card-accent" x="90" y="594" width="250" height="80" rx="10"></rect>
+          <text class="card-title" x="110" y="620">Repositories</text>
+          <text class="card-copy" x="110" y="642">entrenador · perros · avistamientos</text>
+          <text class="card-copy" x="110" y="661">mapean datos al dominio</text>
+
+          <rect class="card card-accent" x="375" y="594" width="265" height="80" rx="10"></rect>
+          <text class="card-title" x="395" y="620">Servicios de app</text>
+          <text class="card-copy" x="395" y="642">nitidez · ubicación · acelerómetro</text>
+          <text class="card-copy" x="395" y="661">adaptadores en data/services</text>
+
+          <rect class="card card-accent" x="675" y="594" width="265" height="80" rx="10"></rect>
+          <text class="card-title" x="695" y="620">supabase-service</text>
+          <text class="card-copy" x="695" y="642">cliente, Auth, Storage</text>
+          <text class="card-copy" x="695" y="661">URL pública y carga de imágenes</text>
+
+          <rect class="card card-blue" x="975" y="594" width="355" height="80" rx="10"></rect>
+          <text class="card-title" x="995" y="620">Configuración</text>
+          <text class="card-copy" x="995" y="642">env.ts · EXPO_PUBLIC_SUPABASE_URL / KEY</text>
+          <text class="card-copy" x="995" y="661">la clave de cliente es publicable</text>
+
+          <path class="flow" d="M268 373 V407 H210 V593"></path>
+          <path class="flow" d="M568 373 V407 H260 V593"></path>
+          <path class="flow" d="M868 373 V407 H300 V593"></path>
+          <path class="flow" d="M1170 373 V407 H325 V593"></path>
+          <path class="flow" d="M620 483 H700 V573 H800 V593"></path>
+          <path class="flow" d="M445 505 V574 H250 V593"></path>
+          <path class="flow" d="M995 505 V574 H290 V593"></path>
+          <path class="flow" d="M340 634 H374"></path>
+          <path class="flow" d="M640 634 H674"></path>
+          <path class="flow flow-dashed" d="M940 634 H974"></path>
+
+          <!-- Device layer -->
+          <rect class="card card-green" x="115" y="780" width="235" height="55" rx="10"></rect>
+          <text class="card-title" x="232" y="804" text-anchor="middle">Cámara</text>
+          <text class="card-copy" x="232" y="823" text-anchor="middle">Expo Camera</text>
+
+          <rect class="card card-green" x="390" y="780" width="235" height="55" rx="10"></rect>
+          <text class="card-title" x="507" y="804" text-anchor="middle">Sensores</text>
+          <text class="card-copy" x="507" y="823" text-anchor="middle">Expo Sensors · acelerómetro</text>
+
+          <rect class="card card-green" x="665" y="780" width="235" height="55" rx="10"></rect>
+          <text class="card-title" x="782" y="804" text-anchor="middle">Ubicación</text>
+          <text class="card-copy" x="782" y="823" text-anchor="middle">Expo Location · GPS</text>
+
+          <rect class="card card-green" x="940" y="780" width="390" height="55" rx="10"></rect>
+          <text class="card-title" x="1135" y="804" text-anchor="middle">Procesamiento local de imagen</text>
+          <text class="card-copy" x="1135" y="823" text-anchor="middle">FileSystem · ImageManipulator · jpeg-js</text>
+
+          <path class="flow" d="M500 674 V750 H232 V779"></path>
+          <path class="flow" d="M500 674 V779"></path>
+          <path class="flow" d="M500 674 V751 H782 V779"></path>
+          <path class="flow" d="M500 674 V755 H1135 V779"></path>
+
+          <!-- External services -->
+          <rect class="boundary" x="72" y="925" width="860" height="76" rx="12"></rect>
+          <text class="card-copy" x="91" y="947">NUBE · SUPABASE</text>
+          <rect class="card card-blue" x="91" y="958" width="230" height="31" rx="7"></rect>
+          <text class="card-title" x="206" y="979" text-anchor="middle">Auth</text>
+          <rect class="card card-blue" x="365" y="958" width="230" height="31" rx="7"></rect>
+          <text class="card-title" x="480" y="979" text-anchor="middle">Postgres · perros / avistamientos</text>
+          <rect class="card card-blue" x="639" y="958" width="230" height="31" rx="7"></rect>
+          <text class="card-title" x="754" y="979" text-anchor="middle">Storage · fotos</text>
+
+          <rect class="card card-blue" x="1010" y="925" width="320" height="76" rx="12"></rect>
+          <text class="card-copy" x="1030" y="947">PROVEEDORES</text>
+          <text class="card-title" x="1030" y="974">Google OAuth · OpenStreetMap</text>
+          <text class="card-copy" x="1030" y="991">OAuth de entrenador · mosaicos Leaflet</text>
+
+          <path class="flow" d="M800 674 V900 H206 V957"></path>
+          <path class="flow" d="M800 674 V908 H480 V957"></path>
+          <path class="flow" d="M800 674 V916 H754 V957"></path>
+          <path class="flow flow-dashed" d="M206 989 V1012 H1048 V1002"></path>
+          <path class="flow flow-dashed" d="M868 373 V710 H1260 V924"></path>
+
+          <text class="flow-label" x="218" y="892">sesión persistida por AsyncStorage</text>
+          <text class="flow-label" x="1280" y="700" transform="rotate(90 1280 700)">WebView / Leaflet carga mapas OSM</text>
+        </svg>
+
+        <div class="legend" aria-label="Leyenda">
+          <span><i class="swatch mobile"></i> Código de la app y capa de datos</span>
+          <span><i class="swatch device"></i> Capacidades del dispositivo</span>
+          <span><i class="swatch external"></i> Servicios externos</span>
+          <span>→ Dependencia o flujo de datos</span>
+        </div>
+      </section>
+
+      <section class="flows" aria-label="Flujos de runtime">
+        <article class="flow-card">
+          <h2>Autenticación</h2>
+          <p>
+            <code>ApodoProvider</code> consulta la sesión al repositorio de entrenador.
+            Supabase Auth usa Google OAuth y persiste credenciales en AsyncStorage.
+          </p>
+        </article>
+        <article class="flow-card">
+          <h2>Captura de avistamiento</h2>
+          <p>
+            El ViewModel coordina cámara, estabilidad y detección de caída; analiza
+            nitidez, obtiene GPS y pide al repositorio subir la foto a Storage e insertar
+            los metadatos en Postgres.
+          </p>
+        </article>
+        <article class="flow-card">
+          <h2>Consulta y mapa</h2>
+          <p>
+            Pokédex y perfil consultan repositorios para perros y avistamientos.
+            El mapa adapta avistamientos a marcadores y los muestra en WebView con
+            Leaflet y mosaicos de OpenStreetMap.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <footer>
+      Diagrama generado a partir de las rutas y módulos bajo <code>src/app</code>,
+      <code>src/ui</code>, <code>src/domain</code> y <code>src/data</code>.
+      Archivo autónomo: no requiere librerías ni conexión a Internet para visualizarse.
+    </footer>
+  </body>
+</html>
