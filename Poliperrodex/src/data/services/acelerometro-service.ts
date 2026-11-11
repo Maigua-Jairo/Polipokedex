@@ -1,0 +1,1 @@
+export { escucharCaidas } from './acelerometro';
