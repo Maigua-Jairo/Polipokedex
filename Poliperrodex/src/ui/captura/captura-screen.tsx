@@ -1,45 +1,55 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useIsFocused } from 'expo-router';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
- 
+
 import { useApodo } from '@/ui/core/apodo-view-model';
 import { Boton } from '@/ui/core/boton';
 import { Estado } from '@/ui/core/estado';
 import { FormularioApodo } from '@/ui/core/formulario-apodo';
 import { colores, espacio, fuentes, radio } from '@/ui/core/tema';
 import { Texto } from '@/ui/core/texto';
- 
+
 import { useCapturaViewModel, type PasoCaptura } from './use-captura-view-model';
- 
+
 const TEXTO_PASO: Record<PasoCaptura, string> = {
   listo: 'Capturar',
   fotografiando: 'Fotografiando…',
+  analizando: 'Revisando la foto…',
   ubicando: 'Buscando tu ubicación…',
   guardando: 'Guardando…',
 };
- 
+
 export function CapturaScreen() {
   const { apodo, listo } = useApodo();
- 
+
   if (!listo) return <Estado cargando />;
   // Sin apodo no hay a nombre de quién guardar la captura.
   if (!apodo) return <FormularioApodo />;
   return <Camara apodo={apodo} />;
 }
- 
+
 // La vista solo dibuja lo que el ViewModel le entrega y le avisa de los
 // toques. Las únicas decisiones que toma son de interfaz: el permiso de
-// la cámara y a qué pantalla ir cuando la captura termina bien.
+// la cámara, si la cámara ya enfocó y a qué pantalla ir cuando la captura
+// termina bien.
 function Camara({ apodo }: { apodo: string }) {
   const camara = useRef<CameraView>(null);
   const [permiso, pedirPermiso] = useCameraPermissions();
- 
+
   // Las pestañas siguen montadas aunque no se vean. Con esto, la cámara y
-  // el acelerómetro se apagan cuando estás en otra pestaña.
+  // los sensores se apagan cuando estás en otra pestaña.
   const enPantalla = useIsFocused();
   const vm = useCapturaViewModel({ apodo, activo: enPantalla });
- 
+
+  // La cámara tarda en enfocar. Hasta que avise, el botón no dispara.
+  const [camaraLista, setCamaraLista] = useState(false);
+
+  // Al salir de la pestaña la cámara se desmonta; al volver debe esperar otra vez.
+  useEffect(() => {
+    if (!enPantalla) setCamaraLista(false);
+  }, [enPantalla]);
+
   async function alCapturar() {
     const guardado = await vm.capturar(async () => {
       const foto = await camara.current?.takePictureAsync({
@@ -52,9 +62,9 @@ function Camara({ apodo }: { apodo: string }) {
       router.push({ pathname: '/perro/[id]' as any, params: { id: vm.perroId } } as any);
     }
   }
- 
+
   if (!permiso) return <Estado cargando />;
- 
+
   if (!permiso.granted) {
     return (
       <View style={estilos.centro}>
@@ -65,13 +75,18 @@ function Camara({ apodo }: { apodo: string }) {
       </View>
     );
   }
- 
+
   return (
     <View style={estilos.contenedor}>
       {enPantalla && (
-        <CameraView ref={camara} style={StyleSheet.absoluteFill} facing="back" />
+        <CameraView
+          ref={camara}
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          onCameraReady={() => setCamaraLista(true)}
+        />
       )}
- 
+
       <View style={estilos.arriba}>
         <Texto style={estilos.ayuda}>¿A quién tienes enfrente?</Texto>
         <ScrollView
@@ -91,16 +106,25 @@ function Camara({ apodo }: { apodo: string }) {
           })}
         </ScrollView>
       </View>
- 
+
       <View style={estilos.abajo}>
         {vm.error && <Texto style={estilos.error}>{vm.error}</Texto>}
+        {vm.perroId && !vm.quieto && (
+          <Texto style={estilos.aviso1}>Mantén el teléfono quieto</Texto>
+        )}
         <Boton
-          titulo={vm.perroId ? TEXTO_PASO[vm.paso] : 'Elige un perro primero'}
+          titulo={
+            !vm.perroId
+              ? 'Elige un perro primero'
+              : !camaraLista
+                ? 'Enfocando…'
+                : TEXTO_PASO[vm.paso]
+          }
           onPress={alCapturar}
-          deshabilitado={!vm.puedeCapturar}
+          deshabilitado={!vm.puedeCapturar || !camaraLista}
         />
       </View>
- 
+
       {/* Tapa el botón mientras está visible: no se puede disparar otra
           foto hasta que el usuario confirme que recogió el teléfono. */}
       {vm.seCayo && (
@@ -115,7 +139,7 @@ function Camara({ apodo }: { apodo: string }) {
     </View>
   );
 }
- 
+
 const estilos = StyleSheet.create({
   contenedor: { flex: 1, backgroundColor: colores.tinta },
   centro: { flex: 1, justifyContent: 'center', padding: espacio.l, gap: espacio.m },
@@ -134,6 +158,7 @@ const estilos = StyleSheet.create({
   chipTexto: { color: colores.blanco, fontWeight: '600' },
   abajo: { marginTop: 'auto', padding: espacio.m, gap: espacio.s },
   error: { color: colores.blanco, backgroundColor: colores.alerta, padding: espacio.s },
+  aviso1: { color: colores.blanco, textAlign: 'center' },
   fondoAviso: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(42, 37, 32, 0.82)',
